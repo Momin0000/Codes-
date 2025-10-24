@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart To-Do Manager</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+        }
+        
+        #root {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // SVG Icons Components
+        const TasksIcon = ({ active }) => (
+          <svg viewBox="0 0 512 512" fill={active ? "#DC2626" : "currentColor"} style={{width: '28px', height: '28px'}}>
+            <path d="M152 120c-26.51 0-48 21.49-48 48v224c0 26.51 21.49 48 48 48h208c26.51 0 48-21.49 48-48V168c0-26.51-21.49-48-48-48H152zm0-40h208c48.6 0 88 39.4 88 88v224c0 48.6-39.4 88-88 88H152c-48.6 0-88-39.4-88-88V168c0-48.6 39.4-88 88-88z"/>
+            <rect x="200" y="200" width="112" height="20" rx="10"/>
+            <rect x="200" y="250" width="112" height="20" rx="10"/>
+            <rect x="200" y="300" width="112" height="20" rx="10"/>
+            <path d="M155 205l8 8 20-20-8-8z"/>
+            <path d="M155 255l8 8 20-20-8-8z"/>
+            <path d="M155 305l8 8 20-20-8-8z"/>
+          </svg>
+        );
+
+        const AddIcon = ({ active }) => (
+          <svg viewBox="0 0 512 512" fill={active ? "#DC2626" : "currentColor"} style={{width: '28px', height: '28px'}}>
+            <rect x="80" y="120" width="352" height="320" rx="60" fill="none" stroke="currentColor" strokeWidth="32"/>
+            <rect x="80" y="60" width="352" height="100" rx="20" fill="#DC2626"/>
+            <circle cx="140" cy="90" r="15" fill="#1f1f1f"/>
+            <path d="M256 220v120M196 280h120" stroke="currentColor" strokeWidth="40" strokeLinecap="round"/>
+          </svg>
+        );
+
+        const DoneIcon = ({ active }) => (
+          <svg viewBox="0 0 512 512" fill={active ? "#DC2626" : "currentColor"} style={{width: '28px', height: '28px'}}>
+            <defs>
+              <linearGradient id="checkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style={{stopColor: '#FF6B6B'}}/>
+                <stop offset="100%" style={{stopColor: '#FFB347'}}/>
+              </linearGradient>
+            </defs>
+            <rect x="64" y="64" width="384" height="384" rx="80" fill="url(#checkGrad)"/>
+            <path d="M170 256l60 60 110-110" stroke="white" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
+        );
+
+        const SearchIcon = ({ active }) => (
+          <svg viewBox="0 0 512 512" fill={active ? "#DC2626" : "currentColor"} style={{width: '28px', height: '28px'}}>
+            <circle cx="200" cy="200" r="120" fill="none" stroke="#FFC107" strokeWidth="32"/>
+            <circle cx="200" cy="200" r="90" fill="white"/>
+            <rect x="290" y="290" width="160" height="60" rx="30" fill="#FF1744" transform="rotate(45 370 320)"/>
+          </svg>
+        );
+
+        const MatrixIcon = ({ active }) => (
+          <svg viewBox="0 0 512 512" fill={active ? "#DC2626" : "currentColor"} style={{width: '28px', height: '28px'}}>
+            <rect x="80" y="80" width="160" height="160" rx="20" fill="#3B82F6"/>
+            <rect x="272" y="80" width="160" height="160" rx="20" fill="#3B82F6"/>
+            <rect x="80" y="272" width="160" height="160" rx="20" fill="#FF6B9D"/>
+            <rect x="272" y="272" width="160" height="160" rx="20" fill="#FF6B9D"/>
+            <rect x="100" y="100" width="50" height="8" rx="4" fill="white"/>
+            <rect x="100" y="120" width="50" height="8" rx="4" fill="white"/>
+            <rect x="292" y="100" width="50" height="8" rx="4" fill="white"/>
+            <rect x="100" y="292" width="50" height="8" rx="4" fill="white"/>
+            <rect x="292" y="292" width="50" height="8" rx="4" fill="white"/>
+          </svg>
+        );
+
+        function SmartTodoApp() {
+          const [currentView, setCurrentView] = useState('tasks');
+          const [tasks, setTasks] = useState([]);
+          const [showDoneModal, setShowDoneModal] = useState(false);
+          const [deletedTasks, setDeletedTasks] = useState([]);
+          const [searchQuery, setSearchQuery] = useState('');
+          const [filterPriority, setFilterPriority] = useState('all');
+          const [sortBy, setSortBy] = useState('name');
+          
+          const [newTask, setNewTask] = useState({
+            name: '',
+            priority: 'someday',
+            deadline: ''
+          });
+
+          // Add Task
+          const addTask = () => {
+            if (newTask.name.trim()) {
+              setTasks([...tasks, { 
+                ...newTask, 
+                id: Date.now(),
+                done: false,
+                createdAt: new Date()
+              }]);
+              setNewTask({ name: '', priority: 'someday', deadline: '' });
+              setCurrentView('tasks');
+            }
+          };
+
+          // Toggle Done
+          const toggleDone = (id) => {
+            setTasks(tasks.map(task => 
+              task.id === id ? { ...task, done: !task.done } : task
+            ));
+          };
+
+          // Delete Task
+          const deleteTask = (id) => {
+            const taskToDelete = tasks.find(t => t.id === id);
+            setDeletedTasks([taskToDelete, ...deletedTasks]);
+            setTasks(tasks.filter(task => task.id !== id));
+          };
+
+          // Undo Delete
+          const undoDelete = () => {
+            if (deletedTasks.length > 0) {
+              const [lastDeleted, ...rest] = deletedTasks;
+              setTasks([...tasks, lastDeleted]);
+              setDeletedTasks(rest);
+            }
+          };
+
+          // Filter and Sort Tasks
+          const getFilteredTasks = () => {
+            let filtered = tasks.filter(task => !task.done);
+            
+            if (searchQuery) {
+              filtered = filtered.filter(task => 
+                task.name.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+            }
+            
+            if (filterPriority !== 'all') {
+              filtered = filtered.filter(task => task.priority === filterPriority);
+            }
+
+            const sortFunctions = {
+              name: (a, b) => a.name.localeCompare(b.name),
+              priority: (a, b) => {
+                const order = { now: 0, someday: 1, anyday: 2 };
+                return order[a.priority] - order[b.priority];
+              },
+              deadline: (a, b) => {
+                if (!a.deadline) return 1;
+                if (!b.deadline) return -1;
+                return new Date(a.deadline) - new Date(b.deadline);
+              }
+            };
+
+            return filtered.sort(sortFunctions[sortBy]);
+          };
+
+          // Get Matrix Tasks
+          const getMatrixTasks = () => {
+            const activeTasks = tasks.filter(t => !t.done);
+            const matrix = {
+              urgentImportant: [],
+              urgentNotImportant: [],
+              notUrgentImportant: [],
+              notUrgentNotImportant: []
+            };
+
+            activeTasks.forEach(task => {
+              const isUrgent = task.priority === 'now';
+              const hasDeadline = Boolean(task.deadline);
+              
+              if (isUrgent && hasDeadline) matrix.urgentImportant.push(task);
+              else if (isUrgent && !hasDeadline) matrix.urgentNotImportant.push(task);
+              else if (!isUrgent && hasDeadline) matrix.notUrgentImportant.push(task);
+              else matrix.notUrgentNotImportant.push(task);
+            });
+
+            return matrix;
+          };
+
+          // Main Tasks View
+          const TasksView = () => (
+            <>
+              <div style={{flex: 1, overflowY: 'auto', padding: '16px', background: '#fafafa'}}>
+                {getFilteredTasks().length === 0 ? (
+                  <div style={{textAlign: 'center', padding: '48px 0', color: '#6b7280'}}>
+                    <p style={{fontSize: '18px', marginBottom: '8px'}}>No tasks yet!</p>
+                    <p style={{fontSize: '14px'}}>Tap the Add button to create your first task</p>
+                  </div>
+                ) : (
+                  getFilteredTasks().map(task => (
+                    <div key={task.id} style={{background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
+                      <button
+                        onClick={() => toggleDone(task.id)}
+                        style={{width: '24px', height: '24px', borderRadius: '6px', border: '2px solid #DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px', background: 'white', cursor: 'pointer'}}
+                      >
+                        {task.done && <span style={{color: '#DC2626', fontSize: '14px'}}>✓</span>}
+                      </button>
+                      
+                      <div style={{flex: 1}}>
+                        <h3 style={{fontWeight: 600, color: '#111827', marginBottom: '4px'}}>{task.name}</h3>
+                        <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                          <span style={{
+                            padding: '4px 10px', 
+                            borderRadius: '6px', 
+                            fontSize: '12px', 
+                            fontWeight: 500,
+                            background: task.priority === 'now' ? '#FEE2E2' : '#F3F4F6',
+                            color: task.priority === 'now' ? '#DC2626' : '#6B7280'
+                          }}>
+                            {task.priority}
+                          </span>
+                          {task.deadline && (
+                            <span style={{padding: '4px 10px', background: '#F3F4F6', color: '#374151', borderRadius: '6px', fontSize: '12px'}}>
+                              📅 {new Date(task.deadline).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <button onClick={() => deleteTask(task.id)} style={{color: '#DC2626', fontSize: '20px', padding: '4px', background: 'none', border: 'none', cursor: 'pointer'}}>
+                        🗑️
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {deletedTasks.length > 0 && (
+                <button
+                  onClick={undoDelete}
+                  style={{position: 'absolute', top: '80px', right: '16px', background: '#F97316', color: 'white', padding: '8px 16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', fontWeight: 500, fontSize: '14px', border: 'none', cursor: 'pointer'}}
+                >
+                  ↶ Undo
+                </button>
+              )}
+            </>
+          );
+
+          // Add Task View
+          const AddTaskView = () => (
+            <div style={{flex: 1, overflowY: 'auto', padding: '16px', background: '#fafafa'}}>
+              <div style={{background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb'}}>
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px'}}>Task Name</label>
+                  <input
+                    type="text"
+                    value={newTask.name}
+                    onChange={(e) => setNewTask({...newTask, name: e.target.value})}
+                    placeholder="Enter task name..."
+                    style={{width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '15px', outline: 'none'}}
+                    onFocus={(e) => e.target.style.borderColor = '#DC2626'}
+                    onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
+                  />
+                </div>
+                
+                <div style={{marginBottom: '20px'}}>
+                  <label style={{display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px'}}>Priority Level</label>
+                  <select
+                    value={newTask.priority}
+                    onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
+                    style={{width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '15px', outline: 'none'}}
+                  >
+                    <option value="now">Now (Urgent)</option>
+                    <option value="someday">Someday</option>
+                    <option value="anyday">Anyday</option>
+                  </select>
+                </div>
+                
+                <div style={{marginBottom: '24px'}}>
+                  <label style={{display: 'block', fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '8px'}}>Deadline (Optional)</label>
+                  <input
+                    type="date"
+                    value={newTask.deadline}
+                    onChange={(e) => setNewTask({...newTask, deadline: e.target.value})}
+                    style={{width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '15px', outline: 'none'}}
+                  />
+                </div>
+                
+                <button
+                  onClick={addTask}
+                  style={{width: '100%', background: '#DC2626', color: 'white', padding: '12px', borderRadius: '8px', fontWeight: 600, fontSize: '16px', border: 'none', cursor: 'pointer'}}
+                  onMouseOver={(e) => e.target.style.background = '#B91C1C'}
+                  onMouseOut={(e) => e.target.style.background = '#DC2626'}
+                >
+                  ✓ Add Task
+                </button>
+              </div>
+            </div>
+          );
+
+          // Search View
+          const SearchView = () => (
+            <>
+              <div style={{background: 'white', padding: '16px', borderBottom: '1px solid #E5E7EB'}}>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="🔍 Search tasks..."
+                  style={{width: '100%', padding: '12px 16px', borderRadius: '8px', border: '2px solid #D1D5DB', fontSize: '15px', outline: 'none'}}
+                  onFocus={(e) => e.target.style.borderColor = '#DC2626'}
+                  onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
+                />
+              </div>
+              
+              <div style={{background: 'white', padding: '12px 16px', borderBottom: '1px solid #E5E7EB', display: 'flex', gap: '8px', overflowX: 'auto'}}>
+                {['all', 'now', 'someday', 'anyday'].map(priority => (
+                  <button
+                    key={priority}
+                    onClick={() => setFilterPriority(priority)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      border: filterPriority === priority ? 'none' : '1px solid #D1D5DB',
+                      background: filterPriority === priority ? '#DC2626' : '#F3F4F6',
+                      color: filterPriority === priority ? 'white' : '#374151'
+                    }}
+                  >
+                    {priority === 'all' ? 'All' : 
+                     priority === 'now' ? '🔴 Now' :
+                     priority === 'someday' ? '🟡 Someday' : '⚪ Anyday'}
+                  </button>
+                ))}
+              </div>
+              
+              <div style={{flex: 1, overflowY: 'auto', padding: '16px', background: '#fafafa'}}>
+                {getFilteredTasks().length === 0 ? (
+                  <div style={{textAlign: 'center', padding: '48px 0', color: '#6b7280'}}>
+                    <p style={{fontSize: '18px'}}>No results found</p>
+                  </div>
+                ) : (
+                  getFilteredTasks().map(task => (
+                    <div key={task.id} style={{background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
+                      <button
+                        onClick={() => toggleDone(task.id)}
+                        style={{width: '24px', height: '24px', borderRadius: '6px', border: '2px solid #DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px', background: 'white', cursor: 'pointer'}}
+                      >
+                        {task.done && <span style={{color: '#DC2626', fontSize: '14px'}}>✓</span>}
+                      </button>
+                      
+                      <div style={{flex: 1}}>
+                        <h3 style={{fontWeight: 600, color: '#111827', marginBottom: '4px'}}>{task.name}</h3>
+                        <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                          <span style={{
+                            padding: '4px 10px', 
+                            borderRadius: '6px', 
+                            fontSize: '12px', 
+                            fontWeight: 500,
+                            background: task.priority === 'now' ? '#FEE2E2' : '#F3F4F6',
+                            color: task.priority === 'now' ? '#DC2626' : '#6B7280'
+                          }}>
+                            {task.priority}
+                          </span>
+                          {task.deadline && (
+                            <span style={{padding: '4px 10px', background: '#F3F4F6', color: '#374151', borderRadius: '6px', fontSize: '12px'}}>
+                              📅 {new Date(task.deadline).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          );
+
+          // Matrix View
+          const MatrixView = () => {
+            const matrix = getMatrixTasks();
+            
+            return (
+              <div style={{flex: 1, overflowY: 'auto', padding: '12px', background: '#fafafa'}}>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', height: '100%'}}>
+                  <div style={{background: 'white', borderRadius: '12px', padding: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', overflowY: 'auto'}}>
+                    <div style={{background: '#FEE2E2', color: '#DC2626', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, marginBottom: '12px', textAlign: 'center'}}>
+                      🔴 Urgent & Important
+                    </div>
+                    {matrix.urgentImportant.map(task => (
+                      <div key={task.id} style={{background: '#F9FAFB', padding: '8px', borderRadius: '8px', marginBottom: '8px', fontSize: '13px'}}>
+                        {task.name}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div style={{background: 'white', borderRadius: '12px', padding: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', overflowY: 'auto'}}>
+                    <div style={{background: '#FED7AA', color: '#EA580C', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, marginBottom: '12px', textAlign: 'center'}}>
+                      🟠 Urgent, Not Important
+                    </div>
+                    {matrix.urgentNotImportant.map(task => (
+                      <div key={task.id} style={{background: '#F9FAFB', padding: '8px', borderRadius: '8px', marginBottom: '8px', fontSize: '13px'}}>
+                        {task.name}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div style={{background: 'white', borderRadius: '12px', padding: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', overflowY: 'auto'}}>
+                    <div style={{background: '#DBEAFE', color: '#2563EB', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, marginBottom: '12px', textAlign: 'center'}}>
+                      🔵 Not Urgent, Important
+                    </div>
+                    {matrix.notUrgentImportant.map(task => (
+                      <div key={task.id} style={{background: '#F9FAFB', padding: '8px', borderRadius: '8px', marginBottom: '8px', fontSize: '13px'}}>
+                        {task.name}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div style={{background: 'white', borderRadius: '12px', padding: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', overflowY: 'auto'}}>
+                    <div style={{background: '#F3F4F6', color: '#6B7280', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, marginBottom: '12px', textAlign: 'center'}}>
+                      ⚪ Not Urgent, Not Important
+                    </div>
+                    {matrix.notUrgentNotImportant.map(task => (
+                      <div key={task.id} style={{background: '#F9FAFB', padding: '8px', borderRadius: '8px', marginBottom: '8px', fontSize: '13px'}}>
+                        {task.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div style={{display: 'flex', flexDirection: 'column', height: '100vh', maxHeight: '800px', background: 'white', maxWidth: '448px', margin: '0 auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', borderRadius: '20px', overflow: 'hidden', position: 'relative'}}>
+              {/* Header */}
+              <div style={{background: 'white', borderBottom: '1px solid #E5E7EB', padding: '16px', textAlign: 'center'}}>
+                <div style={{width: '80px', height: '80px', margin: '0 auto 12px', borderRadius: '50%', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', background: '#1f1f1f', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                  <svg viewBox="0 0 200 200" style={{width: '90%', height: '90%'}}>
+                    <rect fill="#fef3c7" width="200" height="200" rx="100"/>
+                    <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="80" fill="#1f1f1f">∞</text>
+                  </svg>
+                </div>
+                <h1 style={{fontSize: '20px', fontWeight: 'bold', color: '#111827'}}>Smart To-do Manager</h1>
+              </div>
+
+              {/* Content */}
+              {currentView === 'tasks' && <TasksView />}
+              {currentView === 'add' && <AddTaskView />}
+              {currentView === 'search' && <SearchView />}
+              {currentView === 'matrix' && <MatrixView />}
+
+              {/* Done Tasks Modal */}
+              {showDoneModal && (
+                <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 50}} onClick={() => setShowDoneModal(false)}>
+                  <div style={{background: 'white', width: '100%', maxWidth: '448px', margin: '0 auto', borderRadius: '24px 24px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column'}} onClick={(e) => e.stopPropagation()}>
+                    <div style={{padding: '16px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <h2 style={{fontSize: '20px', fontWeight: 'bold', color: '#111827'}}>✅ Done Tasks</h2>
+                      <button onClick={() => setShowDoneModal(false)} style={{color: '#6B7280', fontSize: '28px', background: 'none', border: 'none', cursor: 'pointer'}}>×</button>
+                    </div>
+                    
+                    <div style={{flex: 1, overflowY: 'auto', padding: '16px'}}>
+                      {tasks.filter(t => t.done).length === 0 ? (
+                        <p style={{textAlign: 'center', padding: '48px 0', color: '#6B7280'}}>No completed tasks yet!</p>
+                      ) : (
+                        tasks.filter(t => t.done).map(task => (
+                          <div key={task.id} style={{background: '#DCFCE7', borderRadius: '12px', padding: '16px', marginBottom: '12px', border: '1px solid #86EFAC'}}>
+                            <h3 style={{fontWeight: 600, color: '#111827', textDecoration: 'line-through', marginBottom: '8px'}}>{task.name}</h3>
+                            <div style={{display: 'flex', gap: '12px'}}>
+                              <button
+                                onClick={() => toggleDone(task.id)}
+                                style={{fontSize: '13px', color: '#DC2626', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer'}}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Navigation */}
+              <div style={{background: 'white', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-around', padding: '8px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'}}>
+                <button
+                  onClick={() => setCurrentView('tasks')}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: currentView === 'tasks' ? '#FEE2E2' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <TasksIcon active={currentView === 'tasks'} />
+                  <span style={{fontSize: '11px', fontWeight: 500, color: currentView === 'tasks' ? '#DC2626' : '#6B7280'}}>
+                    Tasks
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => setCurrentView('add')}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: currentView === 'add' ? '#FEE2E2' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <AddIcon active={currentView === 'add'} />
+                  <span style={{fontSize: '11px', fontWeight: 500, color: currentView === 'add' ? '#DC2626' : '#6B7280'}}>
+                    Add
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => setShowDoneModal(true)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <DoneIcon active={false} />
+                  <span style={{fontSize: '11px', fontWeight: 500, color: '#6B7280'}}>Done</span>
+                </button>
+                
+                <button
+                  onClick={() => setCurrentView('search')}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: currentView === 'search' ? '#FEE2E2' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <SearchIcon active={currentView === 'search'} />
+                  <span style={{fontSize: '11px', fontWeight: 500, color: currentView === 'search' ? '#DC2626' : '#6B7280'}}>
+                    Search
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => setCurrentView('matrix')}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    background: currentView === 'matrix' ? '#FEE2E2' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <MatrixIcon active={currentView === 'matrix'} />
+                  <span style={{fontSize: '11px', fontWeight: 500, color: currentView === 'matrix' ? '#DC2626' : '#6B7280'}}>
+                    Matrix
+                  </span>
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SmartTodoApp />);
+    </script>
+</body>
+</html> '#DC2626', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer'}}
+                              >
+                                Mark Incomplete
+                              </button>
+                              <button
+                                onClick={() => deleteTask(task.id)}
+                                style={{fontSize: '13px', color:
